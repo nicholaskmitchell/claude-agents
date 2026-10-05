@@ -3,7 +3,7 @@
 # "Setup script" field. It installs the agents and the delegation rules from
 # https://github.com/nicholaskmitchell/claude-agents into the VM's ~/.claude.
 #
-# rev: 1
+# rev: 2
 # The environment runs this script again only when its text changes, or after about a week.
 # Change the number above to pick up changes to the repository straight away.
 

@@ -82,8 +82,9 @@ things, with its network access left at Trusted (the default) or set to Full:
 2. **Setup script**: paste in the contents of `cloud/setup-script.sh`. When the environment is
    built, it fetches this repository and runs `cloud/install.sh`, which copies the agents to
    `~/.claude/agents` and the rules to `~/.claude/rules/delegation.md` inside the VM, and merges
-   `cloud/settings.json` (the effort level for Sonnet agents that set none) into the VM's
-   `~/.claude/settings.json`.
+   `cloud/settings.json` into the VM's `~/.claude/settings.json`. That file holds the effort level
+   for Sonnet agents that set none, and turns off the attribution lines Claude Code adds to
+   commits and pull requests; take the `attribution` block out if you want those lines.
 
 The environment keeps the result for about a week and runs the script again only when its text
 changes. To pick up a change sooner: push it to GitHub, wait five minutes

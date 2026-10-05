@@ -3,5 +3,10 @@
     "claude-sonnet-5-5": {
       "effortLevel": "xhigh"
     }
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
   }
 }
