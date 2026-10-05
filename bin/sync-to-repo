@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Copy the agent files and the delegation rules into other repositories, so that cloud
+# sessions (which never see ~/.claude) get the same configuration as local ones.
+#
+#   bin/sync-to-repo <repo>...           copy, and say what was created or replaced
+#   bin/sync-to-repo --check <repo>...   change nothing; exit 1 if any copy is missing,
+#                                        differs, or would not reach a clone
+#
+# Only files that come from this repository are touched: other agents and rules in the
+# target are left alone, and so is the copy of a file that has since been deleted or
+# renamed here (remove that one by hand). Nothing is committed.
+set -euo pipefail
+
+# the script may be reached through a symbolic link, for example one in ~/.local/bin
+self=$(readlink -f "${BASH_SOURCE[0]}")
+src=$(cd "$(dirname "$self")/.." && pwd -P)
+usage() { sed -n '2,/^[^#]/s/^# \{0,1\}//p' "$self"; }
+
+check=0 repos=()
+for arg in "$@"; do
+    case $arg in
+        --check) check=1 ;;
+        -h | --help) usage; exit 0 ;;
+        -*) echo "unknown option: $arg" >&2; exit 2 ;;
+        *) repos+=("$arg") ;;
+    esac
+done
+((${#repos[@]})) || { usage >&2; exit 2; }
+
+# canonical file, then its path inside a target repository
+agents=("$src"/agents/*.md)
+[[ -f ${agents[0]} && -f $src/delegation.md ]] || { echo "$src: agents/*.md or delegation.md is missing" >&2; exit 2; }
+pairs=()
+for f in "${agents[@]}"; do pairs+=("$f" ".claude/agents/${f##*/}"); done
+pairs+=("$src/delegation.md" ".claude/rules/delegation.md")
+
+# resolve every target before writing to any of them
+tops=()
+for repo in "${repos[@]}"; do
+    top=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) || { echo "$repo: not a git work tree" >&2; exit 2; }
+    [[ $top != "$src" ]] || { echo "$repo: that is this repository" >&2; exit 2; }
+    tops+=("$top")
+done
+
+status=0
+for top in "${tops[@]}"; do
+    for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+        from=${pairs[i]} rel=${pairs[i + 1]} to=$top/${pairs[i + 1]}
+        # git stores a symbolic link as a link, so a copy behind one never reaches a clone,
+        # and writing through it would change files outside the target
+        if [[ -L $top/.claude || -L ${to%/*} || -L $to ]]; then
+            echo "$top: $rel is behind a symbolic link; left alone" >&2
+            status=1
+            continue
+        fi
+        # an ignored file never reaches a clone either
+        if git -C "$top" check-ignore -q "$rel"; then
+            echo "$top: warning: $rel is ignored by git" >&2
+            if ((check)); then status=1; fi
+        fi
+        cmp -s "$from" "$to" && continue
+        if [[ -e $to ]]; then verb=replaced state=differs; else verb=created state="is missing"; fi
+        if ((check)); then
+            echo "$top: $rel $state"
+            status=1
+            continue
+        fi
+        mkdir -p "${to%/*}"
+        cp "$from" "$to"
+        echo "$top: $verb $rel"
+    done
+done
+exit "$status"
