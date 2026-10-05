@@ -107,8 +107,10 @@ If `bin/check-setup` shows `saved efforts {}` in a cloud session although the in
 user settings hold a `permissions` block or one of a few display settings, it copies those into
 the VM as a new settings file.
 
-This route depends on the VM reading its own `~/.claude`, which the documentation does not
-promise. The alternative is to commit copies into each repository that is used from the cloud:
+This route depends on the VM reading its own `~/.claude`. The documentation does not promise
+that, but it worked when checked on Claude Code 2.1.289 in October 2026: the fetch used the git
+route, and the agents and the rules loaded. If it stops working, the alternative is to commit
+copies into each repository that is used from the cloud:
 
 ```sh
 bin/sync-to-repo ~/projects/some-repo
