@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Show whether this setup is in effect, and which model and effort each agent ran on.
+
+usage: bin/check-setup [<session-id>]
+
+With no argument it reports on the current session ($CLAUDE_CODE_SESSION_ID) or, failing
+that, on the most recently written one. It reads only metadata from the transcripts.
+"""
+import collections
+import glob
+import json
+import os
+import subprocess
+import sys
+
+cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+
+
+def listing(name):
+    try:
+        return " ".join(sorted(os.listdir(os.path.join(cfg, name)))) or "(empty)"
+    except OSError:
+        return "(none)"
+
+
+def read(name):
+    try:
+        with open(os.path.join(cfg, name)) as fh:
+            return fh.read().strip()
+    except OSError:
+        return None
+
+
+def records(path):
+    with open(path) as fh:
+        for raw in fh:
+            try:
+                yield json.loads(raw)
+            except ValueError:
+                continue
+
+
+def ran_on(path):
+    """Count the API messages of one transcript by (model, effort)."""
+    counts, seen = collections.Counter(), set()
+    for rec in records(path):
+        if rec.get("type") != "assistant":
+            continue
+        message = rec.get("message") or {}
+        if message.get("model") == "<synthetic>":  # written by Claude Code itself, not an API message
+            continue
+        if message.get("id") in seen:
+            continue
+        seen.add(message.get("id"))
+        counts[(message.get("model"), rec.get("effort"))] += 1
+    return ", ".join(f"{model} @ {effort} x{n}" for (model, effort), n in counts.most_common()) or "(no messages)"
+
+
+try:
+    version = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+except (OSError, subprocess.SubprocessError):
+    version = ""
+try:
+    settings = json.loads(read("settings.json") or "{}")
+    if isinstance(settings, dict):
+        efforts = json.dumps(settings.get("modelSettings", {}))
+    else:
+        efforts = "settings.json is not a JSON object"
+except ValueError:
+    efforts = "settings.json is not valid JSON"
+
+print(f"config dir      {cfg}")
+print(f"claude          {version or 'not found on PATH'}")
+print(f"subagent model  {os.environ.get('CLAUDE_CODE_SUBAGENT_MODEL', 'unset')}  (CLAUDE_CODE_SUBAGENT_MODEL in this shell)")
+print(f"cloud install   {read('claude-agents.status') or 'none'}")
+print(f"agents          {listing('agents')}")
+print(f"rules           {listing('rules')}")
+print(f"saved efforts   {efforts}")
+
+projects = os.path.join(cfg, "projects")
+asked = sys.argv[1] if len(sys.argv) > 1 else ""
+session = asked or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+mains = glob.glob(os.path.join(projects, "*", glob.escape(session) + ".jsonl")) if session else []
+if asked and not mains:
+    sys.exit(f"no session transcripts for {asked} under {projects}")
+if not mains:
+    newest = sorted(glob.glob(os.path.join(projects, "*", "*.jsonl")), key=os.path.getmtime)
+    if not newest:
+        sys.exit(f"no session transcripts under {projects}")
+    mains = newest[-1:]
+    session = os.path.basename(mains[0])[: -len(".jsonl")]
+
+print(f"session         {session}")
+print(f"  {'main':<21} {ran_on(mains[0])}")
+found = 0
+for kind in ("agent-*.jsonl", os.path.join("workflows", "*", "agent-*.jsonl")):
+    pattern = os.path.join(projects, "*", glob.escape(session), "subagents", kind)
+    for path in sorted(glob.glob(pattern), key=os.path.getmtime):
+        try:
+            with open(path[: -len(".jsonl")] + ".meta.json") as fh:
+                meta = json.load(fh)
+        except (OSError, ValueError):
+            meta = {}
+        label = meta.get("agentType") or "agent"
+        if kind != "agent-*.jsonl":
+            label = "wf:" + label
+        print(f"  {label:<21} {ran_on(path)}")
+        found += 1
+if not found:
+    print("  (no subagents or workflow agents in this session yet)")

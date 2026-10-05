@@ -1,0 +1,7 @@
+agents/Explore.md
+agents/implementer.md
+agents/reviewer.md
+agents/test-runner.md
+delegation.md
+cloud/install.sh
+cloud/settings.json
