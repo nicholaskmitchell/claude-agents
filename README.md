@@ -52,7 +52,8 @@ checks afterwards (planning, root-causing, design, review) stays on Opus.
    add these entries inside it: a second key of the same name replaces the first, which would
    discard the levels saved for other models.
 
-Restart Claude Code after creating `~/.claude/agents` for the first time. `/context all` lists the
+Restart Claude Code after this setup. A session that was already running may pick up the variable
+and the agent files, but it keeps the effort levels it read at startup. `/context all` lists the
 memory files that loaded, the import among them. `/tasks` shows the model of each running
 subagent, and `/workflows` the model of each workflow agent.
 
