@@ -104,3 +104,7 @@ A cloud session starts from a fresh clone and sees nothing in `~/.claude`.
   in the `tools` lists for builds that do have them, and are ignored where they do not exist.
 - Frontmatter keys must be spelled exactly (`disallowedTools`, `omitClaudeMd`). A misspelled key or
   an unknown tool name is ignored without a warning.
+
+## Licence
+
+MIT. See `LICENSE`.
