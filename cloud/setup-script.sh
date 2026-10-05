@@ -1,9 +1,9 @@
 #!/bin/bash
 # Setup script for a Claude Code cloud environment: paste it into the environment's
-# "Setup script" field. It installs the agents and the delegation rules from
+# "Setup script" field. It installs the agents and the rules from
 # https://github.com/nicholaskmitchell/claude-agents into the VM's ~/.claude.
 #
-# rev: 2
+# rev: 3
 # The environment runs this script again only when its text changes, or after about a week.
 # Change the number above to pick up changes to the repository straight away.
 
@@ -61,11 +61,15 @@ if ((!ok)); then
     mkdir -p "$cfg/rules"
     cat > "$cfg/rules/claude-agents-setup-failed.md" <<EOF
 The claude-agents setup script failed when this cloud environment was built (exit codes:${why:- not recorded}),
-so the Explore, test-runner, implementer and reviewer agents and the delegation rules may be missing here.
-If you are the main agent of the session, tell the user this once, in your first reply, and say that
-changing the "rev:" line of the environment's setup script makes the environment run it again. Then
-carry on with what the user asked. Do not try to repair the setup yourself, and do not write anything
-into ~/.claude. If you are a subagent, ignore this note.
+so the Explore, test-runner, implementer and reviewer agents, the delegation rules and the rules for
+repositories mirrored from GitLab may be missing here. One of those rules cannot wait: in a repository
+that contains .github/workflows/sync-to-gitlab.yml, GitHub is only a mirror, so work on a branch, open
+a pull request, and never push to main or merge a pull request on GitHub.
+If you are the main agent of the session, tell the user about the failed setup once, in your first
+reply, and say that changing the "rev:" line of the environment's setup script makes the environment
+run it again. Then carry on with what the user asked. Do not try to repair the setup yourself, and do
+not write anything into ~/.claude. If you are a subagent, do not report the failure; the mirror rule
+above still applies to you.
 EOF
     echo "claude-agents: setup failed (exit codes:${why:- not recorded}); sessions will be told" >&2
 fi

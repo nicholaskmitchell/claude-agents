@@ -3,5 +3,6 @@ agents/implementer.md
 agents/reviewer.md
 agents/test-runner.md
 delegation.md
+mirror.md
 cloud/install.sh
 cloud/settings.json

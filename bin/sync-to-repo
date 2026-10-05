@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copy the agent files and the delegation rules into other repositories, so that cloud
+# Copy the agent files and the rules files into other repositories, so that cloud
 # sessions (which never see ~/.claude) get the same configuration as local ones.
 #
 #   bin/sync-to-repo <repo>...           copy, and say what was created or replaced
@@ -29,10 +29,11 @@ done
 
 # canonical file, then its path inside a target repository
 agents=("$src"/agents/*.md)
-[[ -f ${agents[0]} && -f $src/delegation.md ]] || { echo "$src: agents/*.md or delegation.md is missing" >&2; exit 2; }
+[[ -f ${agents[0]} && -f $src/delegation.md && -f $src/mirror.md ]] ||
+    { echo "$src: agents/*.md, delegation.md or mirror.md is missing" >&2; exit 2; }
 pairs=()
 for f in "${agents[@]}"; do pairs+=("$f" ".claude/agents/${f##*/}"); done
-pairs+=("$src/delegation.md" ".claude/rules/delegation.md")
+pairs+=("$src/delegation.md" ".claude/rules/delegation.md" "$src/mirror.md" ".claude/rules/mirror.md")
 
 # resolve every target before writing to any of them
 tops=()

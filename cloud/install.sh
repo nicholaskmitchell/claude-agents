@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the agents, the delegation rules and the effort defaults into Claude Code's
+# Install the agents, the rules files and the settings fragment into Claude Code's
 # configuration directory. This is for a cloud session's VM, where cloud/setup-script.sh
 # runs it when the environment is built. A workstation uses the links in the README instead.
 #
@@ -31,23 +31,27 @@ if [[ -L $cfg/agents || -L $cfg/rules ]]; then
 fi
 
 agents=("$src"/agents/*.md)
-[[ -f ${agents[0]} && -f $src/delegation.md && -f $src/cloud/settings.json ]] ||
-    { echo "$src: agents/*.md, delegation.md or cloud/settings.json is missing" >&2; exit 1; }
+# the rules files, each followed by a heading that it must contain
+rules=(delegation.md '## Delegation' mirror.md '## Repositories mirrored from GitLab')
+[[ -f ${agents[0]} && -f $src/cloud/settings.json ]] ||
+    { echo "$src: agents/*.md or cloud/settings.json is missing" >&2; exit 1; }
 # A proxy can answer a blocked request with status 200 and an error page, which curl -f accepts.
 # Check that each file is what it should be before anything is copied.
 for f in "${agents[@]}"; do
     [[ $(head -n 1 "$f") == ---* ]] && grep -q '^name: ' "$f" ||
         { echo "$f: not an agent file (no frontmatter): nothing changed" >&2; exit 1; }
 done
-grep -q '^## Delegation' "$src/delegation.md" ||
-    { echo "$src/delegation.md: not the delegation rules: nothing changed" >&2; exit 1; }
+for ((i = 0; i < ${#rules[@]}; i += 2)); do
+    grep -q "^${rules[i + 1]}" "$src/${rules[i]}" 2>/dev/null ||
+        { echo "$src/${rules[i]}: missing, or not the rules file it should be: nothing changed" >&2; exit 1; }
+done
 fragment=$(tr -d ' \t\r\n' < "$src/cloud/settings.json")
 [[ $fragment == '{'*'}' ]] ||
     { echo "$src/cloud/settings.json: not a JSON object: nothing changed" >&2; exit 1; }
 
 mkdir -p "$cfg/agents" "$cfg/rules"
 cp "${agents[@]}" "$cfg/agents/"
-cp "$src/delegation.md" "$cfg/rules/delegation.md"
+for ((i = 0; i < ${#rules[@]}; i += 2)); do cp "$src/${rules[i]}" "$cfg/rules/"; done
 rm -f "$cfg/rules/claude-agents-setup-failed.md"
 
 # effort defaults: merged into settings.json, so that whatever is already there is kept

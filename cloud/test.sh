@@ -57,7 +57,7 @@ make_repo() {
 
 # fixtures
 mkdir -p "$T/repo" "$T/broken"
-cp -r "$ROOT/agents" "$ROOT/bin" "$ROOT/cloud" "$ROOT/delegation.md" "$T/repo/"
+cp -r "$ROOT/agents" "$ROOT/bin" "$ROOT/cloud" "$ROOT/delegation.md" "$ROOT/mirror.md" "$T/repo/"
 make_repo "$T/repo"
 git -C "$T/repo" archive --format=tar.gz --prefix=claude-agents-main/ -o "$T/repo.tar.gz" HEAD
 echo broken > "$T/broken/README.md"
@@ -67,10 +67,12 @@ make_repo "$T/broken"
 PAGE='<!DOCTYPE html><html><body>blocked</body></html>'
 copy_tree() {
     mkdir -p "$1"
-    cp -r "$T/repo/agents" "$T/repo/bin" "$T/repo/cloud" "$T/repo/delegation.md" "$1/"
+    cp -r "$T/repo/agents" "$T/repo/bin" "$T/repo/cloud" "$T/repo/delegation.md" "$T/repo/mirror.md" "$1/"
 }
 copy_tree "$T/bad-agent"; echo "$PAGE" > "$T/bad-agent/agents/reviewer.md"
 copy_tree "$T/bad-rules"; echo "$PAGE" > "$T/bad-rules/delegation.md"
+copy_tree "$T/bad-mirror"; echo "$PAGE" > "$T/bad-mirror/mirror.md"
+copy_tree "$T/no-mirror"; rm "$T/no-mirror/mirror.md"
 copy_tree "$T/bad-settings"; echo "$PAGE" > "$T/bad-settings/cloud/settings.json"
 copy_tree "$T/nonl"; printf '%s' "$(cat "$T/repo/cloud/files.txt")" > "$T/nonl/cloud/files.txt"
 copy_tree "$T/evil"; echo 'agents/../escaped.txt' >> "$T/evil/cloud/files.txt"
@@ -87,6 +89,8 @@ c_A1() {
     expect_rc 0
     expect_agents "$T/a1/agents"
     expect_same_file "$ROOT/delegation.md" "$T/a1/rules/delegation.md"
+    expect_same_file "$ROOT/mirror.md" "$T/a1/rules/mirror.md"
+    expect_equal "$(ls -A "$T/a1/rules" 2>&1)" "$(printf '%s\n' delegation.md mirror.md)" "files in $T/a1/rules"
     expect_equal "$(jq -S . "$T/a1/settings.json" 2>&1)" "$(jq -S . "$ROOT/cloud/settings.json")" "settings.json"
     local status
     status=$(cat "$T/a1/claude-agents.status" 2>&1)
@@ -161,6 +165,7 @@ c_A9() {
     run clean HOME="$T/a9" CLAUDE_CODE_REMOTE=true CLAUDE_CONFIG_DIR="$T/a9cfg" bash "$ROOT/cloud/install.sh"
     expect_rc 0
     expect_file "$T/a9cfg/rules/delegation.md"
+    expect_file "$T/a9cfg/rules/mirror.md"
     expect_absent "$T/a9/.claude"
 }
 
@@ -201,6 +206,21 @@ c_A14() {
     expect_file "$T/a14/agents/Explore.md"
 }
 
+c_A15() {
+    run clean HOME="$T/a15h" bash "$T/bad-mirror/cloud/install.sh" --home "$T/a15"
+    expect_nonzero
+    expect_absent "$T/a15/rules"
+    expect_absent "$T/a15/agents"
+    expect_absent "$T/a15/claude-agents.status"
+}
+
+c_A16() {
+    run clean HOME="$T/a16h" bash "$T/no-mirror/cloud/install.sh" --home "$T/a16"
+    expect_nonzero
+    expect_absent "$T/a16/rules"
+    expect_absent "$T/a16/claude-agents.status"
+}
+
 # B. cloud/setup-script.sh: setup_run <id> <git url> <tar url> <raw url> [NAME=value...]
 # The script's temporary directory is T/tmp-<id>, unless the case sets TMPDIR itself.
 setup_run() {
@@ -215,6 +235,7 @@ setup_run() {
 expect_installed() {
     expect_rc 0
     expect_agents "$1/.claude/agents"
+    expect_same_file "$ROOT/mirror.md" "$1/.claude/rules/mirror.md"
     [[ $(cat "$1/.claude/claude-agents.status" 2>&1) == "ok "* ]] || fail "status file does not start with \"ok \""
     expect_absent "$1/.claude/rules/claude-agents-setup-failed.md"
 }
@@ -318,11 +339,18 @@ c_B13() {
     expect_contains "$(note_of "$T/b13")" "raw="
 }
 
+c_B14() {
+    setup_run b14 "$nowhere_path" "$nowhere_url" "$nowhere_url"
+    expect_rc 0
+    expect_contains "$(note_of "$T/b14")" ".github/workflows/sync-to-gitlab.yml"
+    expect_contains "$(note_of "$T/b14")" "never push to main"
+}
+
 # C. consistency
 
 c_C1() {
     local want got
-    want=$({ printf '%s\n' "${agent_files[@]#"$ROOT"/}"; printf '%s\n' delegation.md cloud/install.sh cloud/settings.json; } | sort)
+    want=$({ printf '%s\n' "${agent_files[@]#"$ROOT"/}"; printf '%s\n' delegation.md mirror.md cloud/install.sh cloud/settings.json; } | sort)
     got=$(grep -v '^$' "$ROOT/cloud/files.txt" | sort)
     expect_equal "$got" "$want" "cloud/files.txt"
 }
@@ -348,6 +376,12 @@ c_C3() {
             grep -q "^$key:" <<< "$head" || fail "${f##*/} has no $key: line in its frontmatter"
         done
     done
+}
+
+c_C4() {
+    grep -q '^## Delegation' "$ROOT/delegation.md" || fail "delegation.md has no \"## Delegation\" heading"
+    grep -q '^## Repositories mirrored from GitLab' "$ROOT/mirror.md" ||
+        fail "mirror.md has no \"## Repositories mirrored from GitLab\" heading"
 }
 
 # D. bin/check-setup, against a fabricated configuration directory
@@ -457,6 +491,8 @@ declare -A names=(
     [A12]="rejects a page in place of the rules"
     [A13]="rejects a page in place of the settings fragment"
     [A14]="a failing jq leaves existing settings alone"
+    [A15]="rejects a page in place of the mirror rules"
+    [A16]="refuses a tree without the mirror rules"
     [B1]="git route"
     [B2]="tarball route"
     [B3]="raw route"
@@ -470,9 +506,11 @@ declare -A names=(
     [B11]="no temporary directory"
     [B12]="started as bash -eu"
     [B13]="failure note names each route"
+    [B14]="failure note carries the mirror rule"
     [C1]="manifest matches the files"
     [C2]="scripts parse"
     [C3]="agent files have their frontmatter"
+    [C4]="rules files have their headings"
     [D1]="reports a named session"
     [D2]="uses CLAUDE_CODE_SESSION_ID"
     [D3]="falls back to the newest session"
@@ -483,8 +521,8 @@ declare -A names=(
     [D8]="synthetic lines are not counted"
 )
 passed=0 failed=0 skipped=0
-for id in A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 B11 B12 B13 \
-    C1 C2 C3 D1 D2 D3 D4 D5 D6 D7 D8; do
+for id in A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 B11 B12 B13 B14 \
+    C1 C2 C3 C4 D1 D2 D3 D4 D5 D6 D7 D8; do
     msg=
     "c_$id"
     status=$?

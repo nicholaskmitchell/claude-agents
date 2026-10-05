@@ -16,8 +16,9 @@ checks afterwards (planning, root-causing, design, review) stays on Opus.
 | `agents/implementer.md` | Carries out a fully specified plan. Sonnet, high effort. |
 | `agents/reviewer.md` | Reviews changes against their plan. Opus, xhigh effort, read-only. |
 | `delegation.md` | Rules for the delegating agent: what goes to which agent, on which model. |
+| `mirror.md` | Rules for repositories whose home is GitLab and whose GitHub copy is a mirror: branch, pull request, never push to or merge on GitHub `main`. |
 | `cloud/setup-script.sh` | Setup script for a cloud environment; fetches this repository and runs the installer. |
-| `cloud/install.sh` | Installs the agents, the rules and `cloud/settings.json` into a cloud VM's `~/.claude`. |
+| `cloud/install.sh` | Installs the agents, both rules files and `cloud/settings.json` into a cloud VM's `~/.claude`. |
 | `cloud/test.sh` | Offline tests for the cloud scripts. Run it after any change; it also checks that `cloud/files.txt` lists every agent, which the last fetch route depends on. |
 | `bin/check-setup` | Shows what is installed and which model and effort each agent of a session ran on. |
 | `bin/sync-to-repo` | Copies the agents and rules into another repository instead (the alternative cloud route). |
@@ -34,10 +35,11 @@ checks afterwards (planning, root-causing, design, review) stays on Opus.
    `-n` makes a second run fail instead of putting a link inside `agents/` itself. If
    `~/.claude/agents` already exists as a folder, move its files into `agents/` here first.
 
-2. Import the rules from `~/.claude/CLAUDE.md` with a line of its own:
+2. Import the rules from `~/.claude/CLAUDE.md`, each on a line of its own:
 
    ```
    @~/projects/claude-agents/delegation.md
+   @~/projects/claude-agents/mirror.md
    ```
 
 3. In `~/.claude/settings.json`, make Sonnet the default for delegated agents, give it an effort
@@ -48,7 +50,7 @@ checks afterwards (planning, root-causing, design, review) stays on Opus.
    {
      "env": { "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet" },
      "modelSettings": { "claude-sonnet-5-5": { "effortLevel": "xhigh" } },
-     "claudeMdExcludes": ["**/.claude/rules/delegation.md"]
+     "claudeMdExcludes": ["**/.claude/rules/delegation.md", "**/.claude/rules/mirror.md"]
    }
    ```
 
@@ -81,7 +83,7 @@ things, with its network access left at Trusted (the default) or set to Full:
    settings file is not applied in a cloud session.
 2. **Setup script**: paste in the contents of `cloud/setup-script.sh`. When the environment is
    built, it fetches this repository and runs `cloud/install.sh`, which copies the agents to
-   `~/.claude/agents` and the rules to `~/.claude/rules/delegation.md` inside the VM, and merges
+   `~/.claude/agents` and the two rules files to `~/.claude/rules/` inside the VM, and merges
    `cloud/settings.json` into the VM's `~/.claude/settings.json`. That file holds the effort level
    for Sonnet agents that set none, and turns off the attribution lines Claude Code adds to
    commits and pull requests; take the `attribution` block out if you want those lines.
@@ -118,7 +120,7 @@ bin/sync-to-repo ~/projects/some-repo
 bin/sync-to-repo --check ~/projects/some-repo   # exit 1 if a copy is missing or has drifted
 ```
 
-The copies land in `.claude/agents/` and `.claude/rules/delegation.md`. Edit the files here, never
+The copies land in `.claude/agents/` and `.claude/rules/`. Edit the files here, never
 the copies: a repository's own copy of an agent wins over the one in `~/.claude`, in local
 sessions too, and the next sync replaces whatever the copy contained. After changing a file here,
 run the script again for every repository that has copies, and read `git diff` there before
