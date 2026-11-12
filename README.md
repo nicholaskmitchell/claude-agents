@@ -138,16 +138,18 @@ the rules twice.
   `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it disables the first two.
 - The built-in Explore and Plan agents say `model: inherit`, so the variable does not move them.
   `agents/Explore.md` is what puts exploration on the lower tier. Plan stays on the main model.
-- The agent files cannot see the main session's model, so they hold the Opus split: the lower-tier
-  agents say `model: sonnet`, and `reviewer` and `analyst` say `model: inherit`, which follows the
-  main model past the variable (on 2.1.322, Plan ran on Opus with the variable set to `sonnet`).
-  `delegation.md` has the main agent pass `opus` to the lower-tier agents when it runs on Mythos
-  or Fable.
+- The agent files cannot see the main session's model, so on their own they give the split for an
+  Opus main session: the lower-tier agents say `model: sonnet`, and `reviewer` and `analyst` say
+  `model: inherit`, which follows the main model past the variable (on 2.1.322, Plan ran on Opus
+  with the variable set to `sonnet`). Everything else rests on the main agent following
+  `delegation.md`: on Mythos or Fable it passes `opus` to the lower-tier agents, and on any other
+  model (Sonnet, Haiku) it passes `opus` to `reviewer` and `analyst`. Before the tiers,
+  `reviewer`'s file pinned Opus, so on those other models the old split now depends on that rule.
 - The model aliases are `sonnet`, `opus`, `haiku` and `fable` (with `best`, `opusplan` and the
   `[1m]` forms); there is no `mythos` alias, and the Agent tool's `model` takes only those four.
-  So nothing passed on a call puts an agent on Mythos, and `model: inherit` in an agent file is
-  the only route that does not pin one model version. That is why upper-tier work goes to
-  `analyst` rather than to `general-purpose` with a model.
+  So no Agent tool call can name Mythos, and `model: inherit` in an agent file is what puts
+  `reviewer` and `analyst` on it without pinning one model version. That is why upper-tier work
+  goes to `analyst` rather than to `general-purpose` with a model.
 - The variable is also the default for workflow agents, so a workflow stage that should run on
   Opus has to say so.
 - An agent that sets no `effort` runs at the level chosen for the session with `--effort` or
