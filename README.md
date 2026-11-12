@@ -3,18 +3,21 @@
 One place for the Claude Code subagents and delegation rules I use everywhere, so that local
 sessions and cloud sessions do not drift apart.
 
-The main session stays on Opus. Delegated work that Opus reads before anything rests on it
-(searching, running tests, carrying out a fully specified plan) runs on Sonnet. Anything nobody
-checks afterwards (planning, root-causing, design, review) stays on Opus.
+Work is split between two tiers of model. Delegated work that the upper tier reads before anything
+rests on it (searching, running tests, carrying out a fully specified plan) runs on the lower tier.
+Anything nobody checks afterwards (planning, root-causing, design, review) stays on the upper tier.
+The main session's model sets the tiers: on Mythos the split is Mythos and Opus, on Fable it is
+Fable and Opus, and on Opus or any other model it is Opus and Sonnet.
 
 ## What is here
 
 | Path | What |
 |---|---|
-| `agents/Explore.md` | Replaces the built-in Explore agent. Sonnet, medium effort, read-only. |
-| `agents/test-runner.md` | Runs checks and reports failures; never fixes. Sonnet, low effort. |
-| `agents/implementer.md` | Carries out a fully specified plan. Sonnet, high effort. |
-| `agents/reviewer.md` | Reviews changes against their plan. Opus, xhigh effort, read-only. |
+| `agents/Explore.md` | Replaces the built-in Explore agent. Lower tier, medium effort, read-only. |
+| `agents/test-runner.md` | Runs checks and reports failures; never fixes. Lower tier, low effort. |
+| `agents/implementer.md` | Carries out a fully specified plan. Lower tier, high effort. |
+| `agents/reviewer.md` | Reviews changes against their plan. Upper tier, xhigh effort, read-only. |
+| `agents/analyst.md` | Other work that judges: planning, diagnosis, verifying, scoring, synthesis. Upper tier, xhigh effort, read-only. |
 | `delegation.md` | Rules for the delegating agent: what goes to which agent, on which model. |
 | `mirror.md` | Rules for repositories whose home is GitLab and whose GitHub copy is a mirror: branch, pull request, never push to or merge on GitHub `main`. |
 | `cloud/setup-script.sh` | Setup script for a cloud environment; fetches this repository and runs the installer. |
@@ -128,13 +131,23 @@ committing. A file deleted or renamed here is not removed from those repositorie
 copy by hand. Use one route or the other for a given repository; with both, a cloud session loads
 the rules twice.
 
-## How Claude Code behaves (checked against 2.1.289)
+## How Claude Code behaves (checked against 2.1.289, and against 2.1.322 for the model names)
 
 - `CLAUDE_CODE_SUBAGENT_MODEL` is a default, not an override. The order is the per-call `model`,
   then the agent file's `model`, then the variable, then the caller's model. Do not set
   `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it disables the first two.
 - The built-in Explore and Plan agents say `model: inherit`, so the variable does not move them.
-  `agents/Explore.md` is what puts exploration on Sonnet. Plan stays on the main model.
+  `agents/Explore.md` is what puts exploration on the lower tier. Plan stays on the main model.
+- The agent files cannot see the main session's model, so they hold the Opus split: the lower-tier
+  agents say `model: sonnet`, and `reviewer` and `analyst` say `model: inherit`, which follows the
+  main model past the variable (on 2.1.322, Plan ran on Opus with the variable set to `sonnet`).
+  `delegation.md` has the main agent pass `opus` to the lower-tier agents when it runs on Mythos
+  or Fable.
+- The model aliases are `sonnet`, `opus`, `haiku` and `fable` (with `best`, `opusplan` and the
+  `[1m]` forms); there is no `mythos` alias, and the Agent tool's `model` takes only those four.
+  So nothing passed on a call puts an agent on Mythos, and `model: inherit` in an agent file is
+  the only route that does not pin one model version. That is why upper-tier work goes to
+  `analyst` rather than to `general-purpose` with a model.
 - The variable is also the default for workflow agents, so a workflow stage that should run on
   Opus has to say so.
 - An agent that sets no `effort` runs at the level chosen for the session with `--effort` or

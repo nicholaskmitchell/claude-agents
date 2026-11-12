@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Independent read-only review of a diff against its plan. Use it on every implementer diff before the work is reported as done, and whenever a change needs a second opinion that is not anchored on the author's own account of it.
-model: opus
+model: inherit
 effort: xhigh
 tools: Read, Grep, Glob, Bash
 ---

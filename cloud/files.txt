@@ -1,4 +1,5 @@
 agents/Explore.md
+agents/analyst.md
 agents/implementer.md
 agents/reviewer.md
 agents/test-runner.md
